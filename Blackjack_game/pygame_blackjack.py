@@ -37,6 +37,13 @@ cat2_img = pygame.image.load('images/pixelart_dealercat.png').convert_alpha()
 scaled_cat2_img = pygame.transform.scale(cat2_img, (150, 150)) 
 cat3_img = pygame.image.load('images/pixelart_guestcat.png').convert_alpha()
 scaled_cat3_img = pygame.transform.scale(cat3_img, (150, 150)) 
+#computer players
+comp1_hand = []
+comp2_hand = []
+comp1_score = 0
+comp2_score = 0
+comp1_active = False
+comp2_active = False
 
 # deal cards by selecting randomly from deck, and make function for one card at a time
 def deal_cards(current_hand, current_deck):
@@ -47,19 +54,35 @@ def deal_cards(current_hand, current_deck):
 
 
 # draw scores for player and dealer on screen
-def draw_scores(player, dealer):
+def draw_scores(player, comp1, comp2, dealer, reveal_dealer):
     screen.blit(font.render(f'Score[{player}]', True, (196, 77, 129)), (300, 500))
+    screen.blit(font.render(f'Score[{comp1}]', True, (196, 77, 129)), (80, 200))
+    screen.blit(font.render(f'Score[{comp2}]', True, (196, 77, 129)), (900, 200))
     if reveal_dealer:
         screen.blit(font.render(f'Score[{dealer}]', True, (237, 190, 211)), (300, 200))
 
 
 # draw cards visually onto screen
-def draw_cards(player, dealer, reveal):
+def draw_cards(player, comp1, comp2, dealer, reveal):
     for i in range(len(player)):
         pygame.draw.rect(screen, 'white', [535 + (50 * i), 460 + (3 * i), 80, 140], 0, 5)
         screen.blit(card_font.render(player[i], True, (196, 77, 129)), (545 + 50 * i, 465 + 5 * i))
         screen.blit(card_font.render(player[i], True, (196, 77, 129)), (580 + 50 * i, 570 + 3 * i))
         pygame.draw.rect(screen, (196, 77, 129), [535 + (50 * i), 460 + (3 * i), 80, 140], 5, 5)
+
+    # comp1 draw cards
+    for i in range(len(comp1)):
+        pygame.draw.rect(screen, 'white', [65 + (50 * i), 265 + (3 * i), 80, 140], 0, 5)
+        screen.blit(card_font.render(comp1[i], True, (237, 190, 211)), (75 + 50 * i, 270 + 5 * i))
+        screen.blit(card_font.render(comp1[i], True, (237, 190, 211)), (110 + 50 * i, 370 + 3 * i))
+        pygame.draw.rect(screen, (237, 190, 211), [65 + (50 * i), 265 + (3 * i), 80, 140], 5, 5)
+    
+    # comp2 draw cards
+    for i in range(len(comp2)):
+        pygame.draw.rect(screen, 'white', [905 + (50 * i), 265 + (3 * i), 80, 140], 0, 5)
+        screen.blit(card_font.render(comp2[i], True, (237, 190, 211)), (915 + 50 * i, 270 + 5 * i))
+        screen.blit(card_font.render(comp2[i], True, (237, 190, 211)), (950 + 50 * i, 370 + 3 * i))
+        pygame.draw.rect(screen, (237, 190, 211), [905 + (50 * i), 265 + (3 * i), 80, 140], 5, 5)
 
     # if player hasn't finished turn, dealer will hide one card
     for i in range(len(dealer)):
@@ -71,6 +94,8 @@ def draw_cards(player, dealer, reveal):
             screen.blit(card_font.render('???', True, (237, 190, 211)), (545 + 50 * i, 170 + 5 * i))
             screen.blit(card_font.render('???', True, (237, 190, 211)), (580 + 50 * i, 270 + 3 * i))
         pygame.draw.rect(screen, (237, 190, 211), [535 + (50 * i), 165 + (3 * i), 80, 140], 5, 5)
+
+
 
 
 # pass in player or dealer hand and get best score possible
@@ -208,17 +233,23 @@ while run:
     if initial_deal:
         for i in range(2):
             my_hand, game_deck = deal_cards(my_hand, game_deck)
+            comp1_hand, game_deck = deal_cards(comp1_hand, game_deck)
+            comp2_hand, game_deck = deal_cards(comp2_hand, game_deck)
             dealer_hand, game_deck = deal_cards(dealer_hand, game_deck)
         initial_deal = False
+        comp1_active = True
+        comp2_active = True
     # once game is activated, and dealt, calculate scores and display cards
     if active:
         player_score = calculate_score(my_hand)
-        draw_cards(my_hand, dealer_hand, reveal_dealer)
+        comp1_score = calculate_score(comp1_hand)
+        comp2_score = calculate_score(comp2_hand)
+        draw_cards(my_hand, comp1_hand, comp2_hand, dealer_hand, reveal_dealer)
         if reveal_dealer:
             dealer_score = calculate_score(dealer_hand)
             if dealer_score < 17:
                 dealer_hand, game_deck = deal_cards(dealer_hand, game_deck)
-        draw_scores(player_score, dealer_score)
+        draw_scores(player_score, comp1_score, comp2_score, dealer_score, reveal_dealer)
     buttons = draw_game(active, records, outcome)
 
     # event handling, if quit pressed, then exit game
@@ -232,6 +263,8 @@ while run:
                     initial_deal = True
                     game_deck = copy.deepcopy(decks * one_deck)
                     my_hand = []
+                    comp1_hand = []
+                    comp2_hand = []
                     dealer_hand = []
                     outcome = 0
                     hand_active = True
@@ -252,6 +285,8 @@ while run:
                         initial_deal = True
                         game_deck = copy.deepcopy(decks * one_deck)
                         my_hand = []
+                        comp1_hand = []
+                        comp2_hand = []
                         dealer_hand = []
                         outcome = 0
                         hand_active = True
@@ -260,12 +295,28 @@ while run:
                         add_score = True
                         dealer_score = 0
                         player_score = 0
+                        comp1_score = 0
+                        comp2_score = 0
 
 
     # if player busts, automatically end turn - treat like a stand
     if hand_active and player_score >= 21:
         hand_active = False
         reveal_dealer = True
+
+    #comp1 plays when player ends turn 
+    if not hand_active and comp1_active:
+        while comp1_score < 17:
+            comp1_hand, game_deck = deal_cards(comp1_hand, game_deck)
+            comp1_score = calculate_score(comp1_hand)
+        comp1_active = True
+    
+    #comp2 plays when player ends turn 
+    if not hand_active and comp2_active:
+        while comp2_score < 17:
+            comp2_hand, game_deck = deal_cards(comp2_hand, game_deck)
+            comp2_score = calculate_score(comp2_hand)
+        comp2_active = True
 
     outcome, records, add_score = check_endgame(hand_active, dealer_score, player_score, outcome, records, add_score)
 

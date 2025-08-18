@@ -1,6 +1,6 @@
-import copy
 import random
 import pygame
+import math
 
 pygame.init()
 # game variables
@@ -29,8 +29,6 @@ reveal_dealer = False
 hand_active = False
 outcome = 0
 add_score = False
-results = ['', 'PLAYER BUSTED o_O', 'Purrfect Win! 😸', 'DEALER WINS :(', 'TIE GAME...']
-outcome_time = None
 #cat images
 cat_img = pygame.image.load('images/pixelart_cat.png').convert_alpha()
 scaled_cat_img = pygame.transform.scale(cat_img, (500, 500)) 
@@ -51,13 +49,95 @@ comp2_score = 0
 comp1_active = False
 comp2_active = False
 
+player_points = 0
+comp1_points = 0
+comp2_points = 0
+
+win_match = 3
+
+player_match_points = 0
+comp1_match_points = 0
+comp2_match_points = 0
+
+round_overlay = False
+match_overlay = False
+deal_button = None
+match_button = None
+
+round_winners = []
+match_winners = []
+
+bounce_start_time = pygame.time.get_ticks()
+bounce_height = 15
+bounce_speed = 1
+
+def get_round_winners(player_score, comp1_score, comp2_score, dealer_score):
+    winners = []
+    dealer_busted = dealer_score > 21
+
+    if player_score <= 21 and (dealer_busted or player_score > dealer_score):
+        winners.append("Guest")
+    if comp1_score <= 21 and (dealer_busted or comp1_score > dealer_score):
+        winners.append("Player 1")
+    if comp2_score <= 21 and (dealer_busted or comp2_score > dealer_score):
+        winners.append("Player 2")
+    
+    return winners
+
+def get_match_winners():
+    global match_winners 
+    match_winners.clear()
+
+    if player_points == 0 and player_match_points > 0 and player_match_points % 1 == 0:
+         match_winners.append("Guest")
+    if comp1_points == 0 and comp1_match_points > 0 and comp1_match_points % 1 == 0:
+         match_winners.append("Player 1")
+    if comp2_points == 0 and comp2_match_points > 0 and comp2_match_points % 1 == 0:
+         match_winners.append("Player 2")
+
+def give_points(player_score, comp1_score, comp2_score, dealer_score):
+    global player_points, comp1_points, comp2_points
+
+    dealer_busted = dealer_score > 21
+
+    if (player_score <= 21 and (dealer_busted or player_score > dealer_score)):
+        player_points += 1
+    if (comp1_score <= 21 and (dealer_busted or comp1_score > dealer_score)):
+        comp1_points += 1
+    if (comp2_score <= 21 and (dealer_busted or comp2_score > dealer_score)):
+        comp2_points += 1
+
+def match_points():
+    global player_points, comp1_points, comp2_points
+    global player_match_points, comp1_match_points, comp2_match_points, win_match
+    global match_overlay, match_winners, win_match
+
+    match_winners.clear()
+
+    highest = max(player_points, comp1_points, comp2_points)
+
+    if highest >= win_match:
+        if player_points >= win_match:
+            player_match_points += 1
+            match_winners.append("Guest")
+        if comp1_points >= win_match:
+            comp1_match_points += 1
+            match_winners.append("Player 1")
+        if comp2_points >= win_match:
+            comp2_match_points += 1
+            match_winners.append("Player 2")
+    
+        player_points = comp1_points = comp2_points = 0
+
+        match_overlay = True
+ 
+
 # deal cards by selecting randomly from deck, and make function for one card at a time
 def deal_cards(current_hand, current_deck):
     card = random.randint(0, len(current_deck) - 1)  
     current_hand.append(current_deck[card])
     current_deck.pop(card)
     return current_hand, current_deck
-
 
 # draw scores for player and dealer on screen
 def draw_scores(player, comp1, comp2, dealer, reveal_dealer):
@@ -66,7 +146,6 @@ def draw_scores(player, comp1, comp2, dealer, reveal_dealer):
     screen.blit(font.render(f'Score[{comp2}]', True, (237, 190, 211)), (960, 485))
     if reveal_dealer:
         screen.blit(font.render(f'Score[{dealer}]', True, (237, 190, 211)), (560, 320))
-
 
 # draw cards visually onto screen
 def draw_cards(player, comp1, comp2, dealer, reveal):
@@ -103,7 +182,6 @@ def draw_cards(player, comp1, comp2, dealer, reveal):
 
 
 
-
 # pass in player or dealer hand and get best score possible
 def calculate_score(hand):
     # calculate hand score fresh every time, check how many aces we have
@@ -126,7 +204,6 @@ def calculate_score(hand):
             if hand_score > 21:
                 hand_score -= 10
     return hand_score
-
 
 # draw game conditions and buttons
 def draw_game(act, record, result):
@@ -198,30 +275,126 @@ def draw_game(act, record, result):
         button_list.append(stand)
 
     #score
-        score_text = smaller_font.render(f'Wins: {record[0]}   Losses: {record[1]}   Draws: {record[2]}', True, (196, 77, 129))
-        score_rect = score_text.get_rect(topleft=(350, 15))
-        pygame.draw.rect(screen, (237, 190, 211), score_rect)
-        screen.blit(score_text, score_rect)
+        x = 950
+        y = 670
+        spacing = 45
+
+        score_text1 = smaller_font.render(f'Player 1: {comp1_points}', True, (196, 77, 129))
+        score_rect1 = score_text1.get_rect(topleft=(x, y))
+        pygame.draw.rect(screen, (237, 190, 211), score_rect1)
+        screen.blit(score_text1, score_rect1)
+
+        score_text2 = smaller_font.render(f'Guest: {player_points}', True, (196, 77, 129))
+        score_rect2 = score_text2.get_rect(topleft=(x, y + spacing))
+        pygame.draw.rect(screen, (237, 190, 211), score_rect2)
+        screen.blit(score_text2, score_rect2)
+
+        score_text3 = smaller_font.render(f'Player 2: {comp2_points}', True, (196, 77, 129))
+        score_rect3 = score_text3.get_rect(topleft=(x, y + 2* spacing))
+        pygame.draw.rect(screen, (237, 190, 211), score_rect3)
+        screen.blit(score_text3, score_rect3)
+
+    # match points score
+        match_points_text = (f'Match Points: Player 1 = {comp1_match_points}   Guest = {player_match_points}   Player 2 = {comp2_match_points}')
+        match_points_surf = smaller_font.render(match_points_text, True, (196, 77, 129))
+        match_points_rect = match_points_surf.get_rect(topleft=(180, 15))
+        pygame.draw.rect(screen, (237, 190, 211), match_points_rect)
+        screen.blit(match_points_surf, match_points_rect)
+
     # if there is an outcome for the hand that was played, display a restart button and tell user what happened
-    if result != 0 and outcome_time is not None:
-        if pygame.time.get_ticks() - outcome_time >= 3000:
-    #transparent box
-            overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-            overlay.fill((246, 241, 229, 150))
-            screen.blit(overlay, (0,0))
+        if round_overlay and result != 0 and outcome_time is not None:
+            if pygame.time.get_ticks() - outcome_time >= 2500:
+                #transparent box
+                overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+                overlay.fill((246, 241, 229, 150))
+                screen.blit(overlay, (0,0))
 
-            result_text = font.render(results[result], True, (196, 77, 129))
-            result_rect = result_text.get_rect(topleft=(400, 60))
-            pygame.draw.rect(screen, (237, 190, 211), result_rect)
-            screen.blit(result_text, result_rect)
-            deal = pygame.draw.rect(screen, (237, 190, 211), [(WIDTH - 300) // 2, (HEIGHT - 100) // 2, 300, 100], 0, 5)
-            pygame.draw.rect(screen, (196, 77, 129), [(WIDTH - 300) // 2, (HEIGHT - 100) // 2, 300, 100], 3, 5)
-            pygame.draw.rect(screen, (196, 77, 129), [(WIDTH - 300) // 2 + 3, (HEIGHT - 100) // 2 + 3, 294, 94], 3, 5)
-            deal_text = font.render('New Hand', True, (196, 77, 129))
-            screen.blit(deal_text, ((WIDTH - 300) // 2 + 45, (HEIGHT - 100) // 2 + 30))
-            button_list.append(deal)
+                if round_winners:
+                    winners_text = " & ".join(round_winners) + " played a purrfect round!"
+                else:
+                    winners_text = " Purrfect dealer win."
+
+                round_text = font.render(winners_text, True, (196, 77, 129))
+                round_rect = round_text.get_rect(topleft=(100, 15))
+                pygame.draw.rect(screen, (237, 190, 211), round_rect)
+                screen.blit(round_text, round_rect)
+
+                elapsed = (pygame.time.get_ticks() - bounce_start_time) / 1000
+
+                bigger_img = (400, 400)
+                x_offset = 30
+                winner_list = round_winners if round_winners else ["Dealer"]
+
+                for i, name in enumerate(winner_list):
+                    if name == "Dealer":
+                        img = pygame.transform.scale(cat2_img, bigger_img)
+                    elif name == "Guest":
+                        img = pygame.transform.scale(cat3_img, bigger_img)
+                    elif name == "Player 1":
+                        img = pygame.transform.scale(cat4_img, bigger_img)
+                    elif name == "Player 2":
+                        img = pygame.transform.scale(cat5_img, bigger_img)
+                    else:
+                        continue
+
+                    phase_shift = (i/ len(winner_list) * math.pi)
+                    y_bounce = int(bounce_height * math.sin(elapsed * bounce_speed * math.pi * 2 + phase_shift))
+                    screen.blit(img, (x_offset, 200 + y_bounce))
+                    x_offset += bigger_img[0] 
+
+
+                global deal_button
+                deal_button = pygame.draw.rect(screen, (237, 190, 211), [(WIDTH - 300) // 2, 700, 300, 100], 0, 5)
+                pygame.draw.rect(screen, (196, 77, 129), [(WIDTH - 300) // 2, 700, 300, 100], 3, 5)
+                pygame.draw.rect(screen, (196, 77, 129), [(WIDTH - 300) // 2 + 3, 703, 294, 94], 3, 5)
+                deal_text = font.render('NEW HAND', True, (196, 77, 129))
+                screen.blit(deal_text, ((WIDTH - 300) // 2 + 25, 730))
+                button_list.append(deal_button)
+
+        if match_overlay:
+                overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+                overlay.fill((246, 241, 229, 150))
+                screen.blit(overlay, (0,0))
+
+                winner_list = match_winners if match_winners else []
+
+                if winner_list:
+                    winners_text = " & ".join(match_winners) + " played a purrfect match!"
+                else:
+                    winners_text = " No purrfect match."
+                
+                match_text = font.render(winners_text, True, (196, 77, 129))
+                match_rect = match_text.get_rect(topleft=(100, 15))
+                pygame.draw.rect(screen, (237, 190, 211), match_rect)
+                screen.blit(match_text, match_rect)
+
+                if winner_list:
+                    elapsed = (pygame.time.get_ticks() - bounce_start_time) / 1000
+                    bigger_img = (400, 400)
+                    x_offset = 30
+
+                    name_to_img = {"Dealer": cat2_img, "Guest": cat3_img, "Player 1": cat4_img, "Player 2": cat5_img,}
+                    
+                    for i, name in enumerate(winner_list): 
+                        base_img = name_to_img.get(name)
+                        if not base_img:
+                            continue
+
+                        img = pygame.transform.scale(base_img, bigger_img)
+
+                        phase_shift = (i/ len(winner_list) * math.pi)
+                        y_bounce = int(bounce_height * math.sin(elapsed * bounce_speed * math.pi * 2 + phase_shift))
+                        screen.blit(img, (x_offset, 200 + y_bounce))
+                        x_offset += bigger_img[0]
+
+                global match_button
+                match_button = pygame.draw.rect(screen, (237, 190, 211), [(WIDTH - 300) // 2, 700, 300, 100], 0, 5)
+                pygame.draw.rect(screen, (196, 77, 129), [(WIDTH - 300) // 2, 700, 300, 100], 3, 5)
+                pygame.draw.rect(screen, (196, 77, 129), [(WIDTH - 300) // 2 + 3, 703, 294, 94], 3, 5)
+                deal_text = font.render('NEW MATCH', True, (196, 77, 129))
+                screen.blit(deal_text, ((WIDTH - 300) // 2 + 15, 730))
+                button_list.append(match_button)
     return button_list
-
 
 # check endgame conditions function
 def check_endgame(hand_act, deal_score, play_score, result, totals, add):
@@ -245,7 +418,6 @@ def check_endgame(hand_act, deal_score, play_score, result, totals, add):
                 totals[2] += 1
             add = False
     return result, totals, add
-
 
 # main game loop
 run = True
@@ -280,48 +452,89 @@ while run:
         if event.type == pygame.QUIT:
             run = False
         if event.type == pygame.MOUSEBUTTONUP:
-            if not active:
+            #match_overlay
+            if match_overlay and match_button and match_button.collidepoint(event.pos):
+                player_points = comp1_points = comp2_points =  0
+                my_hand.clear()
+                comp1_hand.clear()
+                comp2_hand.clear()
+                dealer_hand.clear()
+                match_overlay = False
+                round_overlay = False
+                active = True
+                initial_deal = True
+                show_deal = True
+                outcome = 0
+                outcome_time = None
+                hand_active = True
+                add_score = True
+                reveal_dealer = False
+
+                game_deck = (one_deck * decks).copy()
+                random.shuffle(game_deck)
+            # round overlay
+            elif round_overlay and deal_button and deal_button.collidepoint(event.pos):
+                my_hand.clear()
+                comp1_hand.clear()
+                comp2_hand.clear()
+                dealer_hand.clear()
+                game_deck = (one_deck * decks).copy()
+                random.shuffle(game_deck)
+
+                round_overlay = False
+                initial_deal = True
+                active = True
+                hand_active = True
+                reveal_dealer = False
+                add_score = True
+                outcome = 0
+                outcome_time = None
+                show_deal = False
+            # no overlay: start match
+            elif not active:
                 if buttons[0].collidepoint(event.pos):
                     active = True
                     initial_deal = True
-                    game_deck = copy.deepcopy(decks * one_deck)
-                    my_hand = []
-                    comp1_hand = []
-                    comp2_hand = []
-                    dealer_hand = []
+                    game_deck = (one_deck * decks).copy()
+                    random.shuffle(game_deck)
+                    my_hand.clear()
+                    comp1_hand.clear()
+                    comp2_hand.clear()
+                    dealer_hand.clear()
                     outcome = 0
+                    outcome_time = None
                     hand_active = True
                     reveal_dealer = False
-                    outcome = 0
                     add_score = True
+                    show_deal = False
             else:
                 # if player can hit, allow them to draw a card
-                if buttons[0].collidepoint(event.pos) and player_score < 21 and hand_active:
+                if buttons and buttons[0].collidepoint(event.pos) and player_score < 21 and hand_active:
                     my_hand, game_deck = deal_cards(my_hand, game_deck)
                 # allow player to end turn (stand)
-                elif buttons[1].collidepoint(event.pos) and not reveal_dealer:
+
+                elif buttons and buttons[1].collidepoint(event.pos) and not reveal_dealer:
                     reveal_dealer = True
                     hand_active = False
-                elif len(buttons) == 3:
-                    if buttons[2].collidepoint(event.pos):
-                        active = True
-                        initial_deal = True
-                        game_deck = copy.deepcopy(decks * one_deck)
-                        my_hand = []
-                        comp1_hand = []
-                        comp2_hand = []
-                        dealer_hand = []
-                        outcome = 0
-                        outcome_time = None
-                        hand_active = True
-                        reveal_dealer = False
-                        outcome = 0
-                        add_score = True
-                        dealer_score = 0
-                        player_score = 0
-                        comp1_score = 0
-                        comp2_score = 0
-
+                elif len(buttons) == 3 and buttons[2].collidepoint(event.pos):
+                    my_hand.clear()
+                    comp1_hand.clear()
+                    comp2_hand.clear()
+                    dealer_hand.clear()
+                    game_deck = (one_deck * decks).copy()
+                    random.shuffle(game_deck)
+                    active = True
+                    initial_deal = True
+                    hand_active = True
+                    outcome = 0
+                    outcome_time = None
+                    reveal_dealer = False
+                    add_score = True
+                    dealer_score = 0
+                    player_score = 0
+                    comp1_score = 0
+                    comp2_score = 0
+                    show_deal = False
 
     # if player busts, automatically end turn - treat like a stand
     if hand_active and player_score >= 21:
@@ -329,23 +542,35 @@ while run:
         reveal_dealer = True
 
     #comp1 plays when player ends turn 
-    if not hand_active and comp1_active:
+    if not hand_active and comp1_active and not comp2_active:
         while comp1_score < 17:
             comp1_hand, game_deck = deal_cards(comp1_hand, game_deck)
             comp1_score = calculate_score(comp1_hand)
-        comp1_active = True
+        comp1_active = False
     
     #comp2 plays when player ends turn 
     if not hand_active and comp2_active:
         while comp2_score < 17:
             comp2_hand, game_deck = deal_cards(comp2_hand, game_deck)
             comp2_score = calculate_score(comp2_hand)
-        comp2_active = True
+        comp2_active = False
 
-    outcome, records, add_score = check_endgame(hand_active, dealer_score, player_score, outcome, records, add_score)
+    if not hand_active and not comp1_active and not comp2_active:
+        dealer_score = calculate_score(dealer_hand)
+        if dealer_score >= 17:
+            outcome, records, add_score = check_endgame(hand_active, dealer_score, player_score, outcome, records, add_score)
+            if outcome != 0 and outcome_time is None:
+                outcome_time = pygame.time.get_ticks()
+                give_points(player_score, comp1_score, comp2_score, dealer_score)
+                round_winners = get_round_winners(player_score, comp1_score, comp1_score, dealer_score)
+                match_points()
+                if not match_overlay:
+                    round_overlay = True
+                add_score = False
 
-    if outcome != 0 and outcome_time is None:
-        outcome_time = pygame.time.get_ticks()
         
     pygame.display.flip()
 pygame.quit()
+
+
+
